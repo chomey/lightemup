@@ -13,6 +13,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var currentHotkey: Hotkey = Hotkey.load()
     private var hotkeyLabel: NSTextField!
     private var hotkeyRecorder: HotkeyRecorderPanel?
+    private var statusLabel: NSTextField!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         booster = BrightnessBooster()
@@ -80,6 +81,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
+        // Status
+        let statusView = NSView(frame: NSRect(x: 0, y: 0, width: 250, height: 24))
+        statusLabel = NSTextField(labelWithString: "Status: Inactive")
+        statusLabel.font = NSFont.systemFont(ofSize: 11)
+        statusLabel.textColor = .secondaryLabelColor
+        statusLabel.frame = NSRect(x: 16, y: 2, width: 220, height: 18)
+        statusView.addSubview(statusLabel)
+        let statusMenuItem = NSMenuItem()
+        statusMenuItem.view = statusView
+        menu.addItem(statusMenuItem)
+
+        menu.addItem(NSMenuItem.separator())
+
         // EDR info
         let infoView = NSView(frame: NSRect(x: 0, y: 0, width: 250, height: 24))
         edrInfoLabel = NSTextField(labelWithString: "EDR: checking...")
@@ -115,10 +129,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 booster.setBoostLevel(level)
             }
+            statusLabel.stringValue = String(format: "Status: Active (%.1fx)", multiplier)
             if let button = statusItem.button {
                 button.image = NSImage(systemSymbolName: "sun.max.trianglebadge.exclamationmark.fill", accessibilityDescription: "Light Em Up (Active)")
             }
         } else {
+            statusLabel.stringValue = "Status: Inactive"
             booster.deactivate()
             if let button = statusItem.button {
                 button.image = NSImage(systemSymbolName: "sun.max.fill", accessibilityDescription: "Light Em Up")
@@ -137,6 +153,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func adjustBoost(by delta: Double) {
+        let newLevel = min(max(brightnessSlider.doubleValue + delta, 0.0), 1.0)
+        brightnessSlider.doubleValue = newLevel
+        sliderChanged()
+    }
+
     @objc private func changeHotkey() {
         hotkeyRecorder = HotkeyRecorderPanel()
         hotkeyRecorder?.onChange = { [weak self] newHotkey in
@@ -149,16 +171,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyRecorder?.show()
     }
 
+    private static let brightnessAdjustModifiers: NSEvent.ModifierFlags = [.control, .option, .command]
+    private static let relevantModifiers: NSEvent.ModifierFlags = [.control, .option, .shift, .command]
+
+    private func handleBrightnessAdjustKeys(_ event: NSEvent) -> Bool {
+        let eventMods = event.modifierFlags.intersection(AppDelegate.relevantModifiers)
+        guard eventMods == AppDelegate.brightnessAdjustModifiers else { return false }
+        if event.keyCode == 126 { // Up arrow
+            adjustBoost(by: 0.1)
+            return true
+        } else if event.keyCode == 125 { // Down arrow
+            adjustBoost(by: -0.1)
+            return true
+        }
+        return false
+    }
+
     private func registerGlobalHotKey() {
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self else { return }
-            if self.currentHotkey.matches(event: event) {
-                self.toggleBoost()
+            DispatchQueue.main.async {
+                if self.handleBrightnessAdjustKeys(event) { return }
+                if self.currentHotkey.matches(event: event) {
+                    self.toggleBoost()
+                }
             }
         }
 
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self else { return event }
+            if self.handleBrightnessAdjustKeys(event) { return nil }
             if self.currentHotkey.matches(event: event) {
                 self.toggleBoost()
                 return nil
