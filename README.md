@@ -41,7 +41,7 @@ Non-XDR displays (MacBook Air, Intel Macs, Studio Display) don't have the extra 
 
 ## Installation
 
-1. Download `LightEmUp-1.0.dmg` from [Releases](../../releases)
+1. Download the latest `.dmg` from [Releases](../../releases)
 2. Open the DMG and drag **Light Em Up** to **Applications**
 3. Launch Light Em Up from Applications
 4. On first launch, grant **Accessibility** permission (needed for the global hotkey):
@@ -68,7 +68,7 @@ To create a distributable DMG:
 
 ```bash
 ./create_dmg.sh
-# Output: dist/LightEmUp-1.0.dmg
+# Output: dist/LightEmUp.dmg
 ```
 
 Requires Xcode Command Line Tools (`xcode-select --install`).
