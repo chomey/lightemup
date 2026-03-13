@@ -7,10 +7,10 @@ Light Em Up unlocks the HDR/EDR brightness range built into Apple XDR displays, 
 <p align="center">
   <img src="screenshots/menu-inactive.png" width="280" alt="Light Em Up — inactive state at 1.0x">
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="screenshots/menu-boosted.png" width="280" alt="Light Em Up — boosted to 1.5x">
+  <img src="screenshots/menu-boosted.png" width="280" alt="Light Em Up — boosted to 2.0x">
 </p>
 <p align="center">
-  <em>Left: Normal brightness (1.0x) · Right: Boosted to 1.5x</em>
+  <em>Left: Normal brightness (1.0x) · Right: Boosted to 2.0x</em>
 </p>
 
 ## Download
