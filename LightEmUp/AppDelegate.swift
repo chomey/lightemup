@@ -7,8 +7,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var boostValueLabel: NSTextField!
     private var edrInfoLabel: NSTextField!
     private var lastBoostLevel: Double = 0.5
-    private var globalMonitor: Any?
-    private var localMonitor: Any?
+    private var eventTap: CFMachPort?
+    private var runLoopSource: CFRunLoopSource?
     private var onboarding: OnboardingWindow?
     private var currentHotkey: Hotkey = Hotkey.load()
     private var hotkeyLabel: NSTextField!
@@ -83,7 +83,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Status
         let statusView = NSView(frame: NSRect(x: 0, y: 0, width: 250, height: 24))
-        statusLabel = NSTextField(labelWithString: "Status: Inactive")
+        statusLabel = NSTextField(labelWithString: eventTap != nil ? "Status: Inactive (hotkeys ready)" : "Status: Inactive (hotkeys FAILED)")
         statusLabel.font = NSFont.systemFont(ofSize: 11)
         statusLabel.textColor = .secondaryLabelColor
         statusLabel.frame = NSRect(x: 16, y: 2, width: 220, height: 18)
@@ -171,52 +171,74 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyRecorder?.show()
     }
 
-    private static let brightnessAdjustModifiers: NSEvent.ModifierFlags = [.control, .option, .command]
-    private static let relevantModifiers: NSEvent.ModifierFlags = [.control, .option, .shift, .command]
-
-    private func handleBrightnessAdjustKeys(_ event: NSEvent) -> Bool {
-        let eventMods = event.modifierFlags.intersection(AppDelegate.relevantModifiers)
-        guard eventMods == AppDelegate.brightnessAdjustModifiers else { return false }
-        if event.keyCode == 126 { // Up arrow
-            adjustBoost(by: 0.1)
-            return true
-        } else if event.keyCode == 125 { // Down arrow
-            adjustBoost(by: -0.1)
-            return true
-        }
-        return false
-    }
+    private static let relevantCGFlags: CGEventFlags = [.maskControl, .maskAlternate, .maskCommand]
+    private static let allModifierMask: CGEventFlags = [.maskControl, .maskAlternate, .maskCommand, .maskShift]
 
     private func registerGlobalHotKey() {
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self = self else { return }
-            DispatchQueue.main.async {
-                if self.handleBrightnessAdjustKeys(event) { return }
-                if self.currentHotkey.matches(event: event) {
-                    self.toggleBoost()
+        let mask: CGEventMask = (1 << CGEventType.keyDown.rawValue)
+
+        let refcon = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
+
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: mask,
+            callback: { (proxy, type, event, refcon) -> Unmanaged<CGEvent>? in
+                guard let refcon = refcon else { return Unmanaged.passUnretained(event) }
+                let appDelegate = Unmanaged<AppDelegate>.fromOpaque(refcon).takeUnretainedValue()
+
+                if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                    if let tap = appDelegate.eventTap {
+                        CGEvent.tapEnable(tap: tap, enable: true)
+                    }
+                    return Unmanaged.passUnretained(event)
                 }
-            }
+
+                let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+                let flags = event.flags.intersection(AppDelegate.allModifierMask)
+
+                // Check ⌃⌥⌘↑/↓ for brightness adjust
+                if flags == AppDelegate.relevantCGFlags {
+                    if keyCode == 126 { // Up arrow
+                        DispatchQueue.main.async { appDelegate.adjustBoost(by: 0.1) }
+                        return nil
+                    } else if keyCode == 125 { // Down arrow
+                        DispatchQueue.main.async { appDelegate.adjustBoost(by: -0.1) }
+                        return nil
+                    }
+                }
+
+                // Check user-configured toggle hotkey
+                if let nsEvent = NSEvent(cgEvent: event) {
+                    if appDelegate.currentHotkey.matches(event: nsEvent) {
+                        DispatchQueue.main.async { appDelegate.toggleBoost() }
+                        return nil
+                    }
+                }
+
+                return Unmanaged.passUnretained(event)
+            },
+            userInfo: refcon
+        ) else {
+            NSLog("LightEmUp: Failed to create CGEvent tap — check Accessibility permissions")
+            return
         }
 
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self = self else { return event }
-            if self.handleBrightnessAdjustKeys(event) { return nil }
-            if self.currentHotkey.matches(event: event) {
-                self.toggleBoost()
-                return nil
-            }
-            return event
-        }
+        eventTap = tap
+        runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
     }
 
     private func unregisterGlobalHotKey() {
-        if let monitor = globalMonitor {
-            NSEvent.removeMonitor(monitor)
-            globalMonitor = nil
+        if let source = runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+            runLoopSource = nil
         }
-        if let monitor = localMonitor {
-            NSEvent.removeMonitor(monitor)
-            localMonitor = nil
+        if let tap = eventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            eventTap = nil
         }
     }
 
@@ -228,6 +250,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 extension AppDelegate: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
+        // Retry event tap if it failed at launch (e.g. accessibility wasn't granted yet)
+        if eventTap == nil {
+            registerGlobalHotKey()
+        }
+
+        if eventTap != nil {
+            let boostStatus = booster.isActive ? String(format: "Active (%.1fx)", 1.0 + brightnessSlider.doubleValue) : "Inactive"
+            statusLabel.stringValue = "Status: \(boostStatus) — hotkeys ready"
+        } else {
+            statusLabel.stringValue = "Status: hotkeys FAILED — check Accessibility"
+        }
+
         if let screen = NSScreen.main {
             let maxEDR = screen.maximumExtendedDynamicRangeColorComponentValue
             let potentialEDR = screen.maximumPotentialExtendedDynamicRangeColorComponentValue
