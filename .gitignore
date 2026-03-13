@@ -1,0 +1,7 @@
+build/
+dist/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/
+LightEmUp/LightEmUp.iconset/
+.DS_Store
+/tmp/
