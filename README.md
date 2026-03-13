@@ -4,6 +4,15 @@ Boost your MacBook display beyond standard brightness — for free.
 
 Light Em Up unlocks the HDR/EDR brightness range built into Apple XDR displays, letting you push screen brightness up to 2x the standard SDR limit. Perfect for working outdoors or in bright environments.
 
+<p align="center">
+  <img src="screenshots/menu-inactive.png" width="280" alt="Light Em Up — inactive state at 1.0x">
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="screenshots/menu-boosted.png" width="280" alt="Light Em Up — boosted to 1.5x">
+</p>
+<p align="center">
+  <em>Left: Normal brightness (1.0x) · Right: Boosted to 1.5x</em>
+</p>
+
 ## Download
 
 Grab the latest `.dmg` from [Releases](../../releases).
