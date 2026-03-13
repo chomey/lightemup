@@ -1,13 +1,13 @@
-# Light Em Up
+# LightEmUp
 
 Boost your MacBook display beyond standard brightness — for free.
 
-Light Em Up unlocks the HDR/EDR brightness range built into Apple XDR displays, letting you push screen brightness up to 2x the standard SDR limit. Perfect for working outdoors or in bright environments.
+LightEmUp unlocks the HDR/EDR brightness range built into Apple XDR displays, letting you push screen brightness up to 2x the standard SDR limit. Perfect for working outdoors or in bright environments.
 
 <p align="center">
-  <img src="screenshots/menu-inactive.png" width="280" alt="Light Em Up — inactive state at 1.0x">
+  <img src="screenshots/menu-inactive.png" width="280" alt="LightEmUp — inactive state at 1.0x">
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="screenshots/menu-boosted.png" width="280" alt="Light Em Up — boosted to 2.0x">
+  <img src="screenshots/menu-boosted.png" width="280" alt="LightEmUp — boosted to 2.0x">
 </p>
 <p align="center">
   <em>Left: Normal brightness (1.0x) · Right: Boosted to 2.0x</em>
@@ -19,7 +19,7 @@ Grab the latest `.dmg` from [Releases](../../releases).
 
 ## How It Works
 
-MacBook Pro XDR displays can output up to 1000+ nits for HDR content, but macOS limits standard (SDR) content to ~500 nits. Light Em Up adjusts the display's gamma transfer table to map SDR output into the EDR (Extended Dynamic Range) range, effectively doubling your available brightness while preserving colors and contrast.
+MacBook Pro XDR displays can output up to 1000+ nits for HDR content, but macOS limits standard (SDR) content to ~500 nits. LightEmUp adjusts the display's gamma transfer table to map SDR output into the EDR (Extended Dynamic Range) range, effectively doubling your available brightness while preserving colors and contrast.
 
 No overlays, no hacks — just the same technique macOS uses for HDR video, applied to your entire screen.
 
@@ -42,11 +42,11 @@ Non-XDR displays (MacBook Air, Intel Macs, Studio Display) don't have the extra 
 ## Installation
 
 1. Download the latest `.dmg` from [Releases](../../releases)
-2. Open the DMG and drag **Light Em Up** to **Applications**
-3. Launch Light Em Up from Applications
+2. Open the DMG and drag **LightEmUp** to **Applications**
+3. Launch LightEmUp from Applications
 4. On first launch, grant **Accessibility** permission (needed for the global hotkey):
    - The app will guide you through this
-   - System Settings → Privacy & Security → Accessibility → add Light Em Up
+   - System Settings → Privacy & Security → Accessibility → add LightEmUp
 
 ## Usage
 
