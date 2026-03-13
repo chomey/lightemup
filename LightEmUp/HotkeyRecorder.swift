@@ -26,10 +26,8 @@ struct Hotkey: Equatable {
             30: "]", 31: "O", 32: "U", 33: "[", 34: "I", 35: "P", 37: "L",
             38: "J", 39: "'", 40: "K", 41: ";", 42: "\\", 43: ",", 44: "/",
             45: "N", 46: "M", 47: ".", 50: "`",
-            // Function keys
             122: "F1", 120: "F2", 99: "F3", 118: "F4", 96: "F5", 97: "F6",
             98: "F7", 100: "F8", 101: "F9", 109: "F10", 103: "F11", 111: "F12",
-            // Special
             36: "↩", 48: "⇥", 49: "Space", 51: "⌫", 53: "⎋",
         ]
         return mapping[keyCode] ?? "Key\(keyCode)"
@@ -50,53 +48,61 @@ struct Hotkey: Equatable {
     }
 
     func matches(event: NSEvent) -> Bool {
-        let eventMods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        return event.keyCode == keyCode && eventMods == modifiers
+        // Only compare the modifiers we care about (ignore capsLock, function, numericPad)
+        let relevant: NSEvent.ModifierFlags = [.control, .option, .shift, .command]
+        let eventMods = event.modifierFlags.intersection(relevant)
+        let savedMods = modifiers.intersection(relevant)
+        return event.keyCode == keyCode && eventMods == savedMods
     }
 }
 
-/// A control that records a keyboard shortcut when clicked.
-class HotkeyRecorderView: NSView {
-    var hotkey: Hotkey {
-        didSet { updateLabel(); onChange?(hotkey) }
-    }
-    var onChange: ((Hotkey) -> Void)?
-    private var isRecording = false
-    private var label: NSTextField!
-    private var recordButton: NSButton!
+/// A floating panel that captures a keyboard shortcut.
+class HotkeyRecorderPanel {
+    private var panel: NSPanel?
     private var localMonitor: Any?
+    var onChange: ((Hotkey) -> Void)?
 
-    init(frame: NSRect, hotkey: Hotkey) {
-        self.hotkey = hotkey
-        super.init(frame: frame)
-        setup()
-    }
+    func show() {
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 140),
+            styleMask: [.titled, .closable, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.title = "Record Hotkey"
+        panel.level = .floating
+        panel.center()
+        panel.isReleasedWhenClosed = false
+        panel.becomesKeyOnlyIfNeeded = false
 
-    required init?(coder: NSCoder) { fatalError() }
+        let content = NSView(frame: panel.contentView!.bounds)
 
-    private func setup() {
-        label = NSTextField(labelWithString: hotkey.displayString)
-        label.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .medium)
-        label.frame = NSRect(x: 0, y: 2, width: 100, height: 20)
-        addSubview(label)
+        let instruction = NSTextField(labelWithString: "Press your desired key combination")
+        instruction.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        instruction.alignment = .center
+        instruction.frame = NSRect(x: 20, y: 90, width: 280, height: 20)
+        content.addSubview(instruction)
 
-        recordButton = NSButton(title: "Record", target: self, action: #selector(startRecording))
-        recordButton.bezelStyle = .rounded
-        recordButton.controlSize = .small
-        recordButton.frame = NSRect(x: 105, y: 0, width: 65, height: 22)
-        addSubview(recordButton)
-    }
+        let hint = NSTextField(labelWithString: "Must include ⌘, ⌥, or ⌃. Press Esc to cancel.")
+        hint.font = NSFont.systemFont(ofSize: 11)
+        hint.textColor = .secondaryLabelColor
+        hint.alignment = .center
+        hint.frame = NSRect(x: 20, y: 68, width: 280, height: 16)
+        content.addSubview(hint)
 
-    private func updateLabel() {
-        label.stringValue = isRecording ? "Press keys..." : hotkey.displayString
-        label.textColor = isRecording ? .systemOrange : .labelColor
-    }
+        let keysLabel = NSTextField(labelWithString: "Waiting...")
+        keysLabel.font = NSFont.monospacedSystemFont(ofSize: 20, weight: .bold)
+        keysLabel.textColor = .systemOrange
+        keysLabel.alignment = .center
+        keysLabel.frame = NSRect(x: 20, y: 24, width: 280, height: 30)
+        keysLabel.tag = 300
+        content.addSubview(keysLabel)
 
-    @objc private func startRecording() {
-        isRecording = true
-        updateLabel()
-        recordButton.title = "Cancel"
-        recordButton.action = #selector(stopRecording)
+        panel.contentView = content
+        panel.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        self.panel = panel
 
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self else { return event }
@@ -104,30 +110,39 @@ class HotkeyRecorderView: NSView {
 
             // Escape cancels
             if event.keyCode == 53 {
-                self.stopRecording()
+                self.close()
                 return nil
             }
 
-            // Require at least one modifier
+            // Require at least one real modifier
             if mods.isEmpty || mods == .shift {
                 return nil
             }
 
-            self.hotkey = Hotkey(keyCode: event.keyCode, modifiers: mods)
-            self.hotkey.save()
-            self.stopRecording()
+            let newHotkey = Hotkey(keyCode: event.keyCode, modifiers: mods)
+            newHotkey.save()
+
+            // Show the recorded hotkey briefly
+            if let label = self.panel?.contentView?.viewWithTag(300) as? NSTextField {
+                label.stringValue = newHotkey.displayString
+                label.textColor = .systemGreen
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                self.onChange?(newHotkey)
+                self.close()
+            }
+
             return nil
         }
     }
 
-    @objc private func stopRecording() {
-        isRecording = false
+    private func close() {
         if let monitor = localMonitor {
             NSEvent.removeMonitor(monitor)
             localMonitor = nil
         }
-        recordButton.title = "Record"
-        recordButton.action = #selector(startRecording)
-        updateLabel()
+        panel?.close()
+        panel = nil
     }
 }

@@ -12,6 +12,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var onboarding: OnboardingWindow?
     private var currentHotkey: Hotkey = Hotkey.load()
     private var hotkeyLabel: NSTextField!
+    private var hotkeyRecorder: HotkeyRecorderPanel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         booster = BrightnessBooster()
@@ -63,26 +64,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
-        // Hotkey config
-        let hotkeyContainer = NSView(frame: NSRect(x: 0, y: 0, width: 250, height: 50))
-
-        hotkeyLabel = NSTextField(labelWithString: "Toggle Hotkey:")
+        // Hotkey display + change button
+        let hotkeyView = NSView(frame: NSRect(x: 0, y: 0, width: 250, height: 24))
+        hotkeyLabel = NSTextField(labelWithString: "Hotkey: \(currentHotkey.displayString)")
         hotkeyLabel.font = NSFont.systemFont(ofSize: 11)
         hotkeyLabel.textColor = .secondaryLabelColor
-        hotkeyLabel.frame = NSRect(x: 20, y: 28, width: 210, height: 16)
-        hotkeyContainer.addSubview(hotkeyLabel)
+        hotkeyLabel.frame = NSRect(x: 16, y: 2, width: 220, height: 18)
+        hotkeyView.addSubview(hotkeyLabel)
+        let hotkeyInfoItem = NSMenuItem()
+        hotkeyInfoItem.view = hotkeyView
+        menu.addItem(hotkeyInfoItem)
 
-        let recorder = HotkeyRecorderView(frame: NSRect(x: 20, y: 2, width: 210, height: 24), hotkey: currentHotkey)
-        recorder.onChange = { [weak self] newHotkey in
-            self?.currentHotkey = newHotkey
-            self?.unregisterGlobalHotKey()
-            self?.registerGlobalHotKey()
-        }
-        hotkeyContainer.addSubview(recorder)
-
-        let hotkeyItem = NSMenuItem()
-        hotkeyItem.view = hotkeyContainer
-        menu.addItem(hotkeyItem)
+        let changeHotkeyItem = NSMenuItem(title: "Change Hotkey...", action: #selector(changeHotkey), keyEquivalent: "")
+        menu.addItem(changeHotkeyItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -141,6 +135,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             brightnessSlider.doubleValue = lastBoostLevel
             sliderChanged()
         }
+    }
+
+    @objc private func changeHotkey() {
+        hotkeyRecorder = HotkeyRecorderPanel()
+        hotkeyRecorder?.onChange = { [weak self] newHotkey in
+            guard let self = self else { return }
+            self.currentHotkey = newHotkey
+            self.hotkeyLabel.stringValue = "Hotkey: \(newHotkey.displayString)"
+            self.unregisterGlobalHotKey()
+            self.registerGlobalHotKey()
+        }
+        hotkeyRecorder?.show()
     }
 
     private func registerGlobalHotKey() {
